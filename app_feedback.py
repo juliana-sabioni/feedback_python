@@ -8,7 +8,7 @@ from openpyxl.styles import PatternFill, Font, Border, Side
 # Função para adicionar feedback e sugestão de melhoria
 def add_feedback():
     global df  # Declarar df como global
-    matricula = matricula_entry.get().strip()
+    employee_id = employee_id_entry.get().strip()
     feedback = feedback_entry.get("1.0", END).strip()
     suggestion = suggestion_entry.get("1.0", END).strip()
     
@@ -20,12 +20,13 @@ def add_feedback():
     
     if feedback:
         new_row = {
-            'matricula': matricula if matricula else 'Não Informado',
-            'date': datetime.now().strftime('%Y-%m-%d'),
-            'feedback': feedback,
-            'suggestion': suggestion
+            'ID do funcionário': employee_id if employee_id else 'Não Informado',
+            'Data': datetime.now().strftime('%Y-%m-%d'),
+            'Feedback': feedback,
+            'Sugestão': suggestion
         }
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        
         # Usar um nome de arquivo temporário para evitar problemas de permissão
         temp_filename = 'feedbacks_temp.xlsx'
         df.to_excel(temp_filename, index=False)
@@ -33,9 +34,9 @@ def add_feedback():
         # Aplicar formatação ao arquivo Excel
         format_excel(temp_filename, 'feedbacks.xlsx')
         
-        matricula_entry.delete(0, END)
-        feedback_entry.delete("1.0", END)
-        suggestion_entry.delete("1.0", END)
+        # Remover o arquivo temporário após 2 segundos
+        root.after(2000, lambda: os.remove(temp_filename) if os.path.exists(temp_filename) else None)
+        
         messagebox.showinfo("Feedback", "Feedback e sugestão adicionados com sucesso!")
     else:
         messagebox.showwarning("Feedback", "Por favor, insira o feedback.")
@@ -81,13 +82,26 @@ def format_excel(input_filename, output_filename):
 try:
     df = pd.read_excel('feedbacks.xlsx')
 except FileNotFoundError:
-    df = pd.DataFrame(columns=['matricula', 'date', 'feedback', 'suggestion'])
+    df = pd.DataFrame(columns=['ID do funcionário', 'Data', 'Feedback', 'Sugestão'])
 
-# Interface gráfica com tkinter
-def on_enter(event):
+# Função para validar a entrada de matrícula
+def validate_employee_id_input(event):
+    char = event.char
+    if not char.isdigit() and char not in ["", "\b", "\x7f"]:  # Permitir Backspace e Delete
+        return "break"  # Bloqueia a entrada do caractere
+
+# Função para validar a entrada de texto
+def validate_text_input(event):
+    char = event.char
+    if not (char.isalpha() or char.isspace() or char in ["", "\b", "\x7f"]):  # Permitir Backspace e Delete
+        return "break"  # Bloqueia a entrada do caractere
+
+def focus_next_widget(event):
     # Mudar o foco para o próximo campo
-    if event.widget == feedback_entry:
-        suggestion_entry.focus_set()
+    next_widget = root.focus_get().tk_focusNext()
+    if next_widget:
+        next_widget.focus()
+    return "break"  # Impedir o comportamento padrão do Tab
 
 root = Tk()
 root.title("Análise de Feedback dos Funcionários")
@@ -106,20 +120,27 @@ root.grid_rowconfigure(6, weight=1)
 root.grid_columnconfigure(0, weight=1)
 
 # Criar e posicionar widgets
-Label(root, text="Digite seu número de matrícula (opcional):", bg='#ADD8E6').grid(row=0, column=0, sticky='w', padx=10, pady=5)
-matricula_entry = Entry(root)
-matricula_entry.grid(row=1, column=0, sticky='ew', padx=10, pady=5)
+Label(root, text="Digite seu número de identificação (opcional):", bg='#ADD8E6').grid(row=0, column=0, sticky='w', padx=10, pady=5)
+employee_id_entry = Entry(root)
+employee_id_entry.grid(row=1, column=0, sticky='ew', padx=10, pady=5)
+employee_id_entry.bind('<Tab>', focus_next_widget)
+employee_id_entry.bind("<KeyPress>", validate_employee_id_input)
 
 Label(root, text="Digite seu feedback (máximo de 500 caracteres):", bg='#ADD8E6').grid(row=2, column=0, sticky='w', padx=10, pady=5)
-feedback_entry = Text(root, height=10, width=50)
+feedback_entry = Text(root, height=10, width=50, wrap='word')
 feedback_entry.grid(row=3, column=0, sticky='ew', padx=10, pady=5)
-feedback_entry.bind('<Return>', on_enter)  # Permitir usar Enter para ir para o próximo campo
-feedback_entry.bind('<Tab>', on_enter)  # Permitir usar Tab para ir para o próximo campo
+feedback_entry.bind('<Tab>', focus_next_widget)
+feedback_entry.bind("<KeyPress>", validate_text_input)
 
 Label(root, text="Digite sua sugestão de melhoria (opcional):", bg='#ADD8E6').grid(row=4, column=0, sticky='w', padx=10, pady=5)
-suggestion_entry = Text(root, height=5, width=50)
+suggestion_entry = Text(root, height=5, width=50, wrap='word')
 suggestion_entry.grid(row=5, column=0, sticky='ew', padx=10, pady=5)
+suggestion_entry.bind('<Tab>', focus_next_widget)
+suggestion_entry.bind("<KeyPress>", validate_text_input)
 
-Button(root, text="Adicionar Feedback e Sugestão", command=add_feedback).grid(row=6, column=0, pady=10)
+Button(root, text="Enviar feedback", command=add_feedback).grid(row=6, column=0, pady=10)
+
+# Definir o foco inicial no campo de ID
+root.after(100, lambda: employee_id_entry.focus())
 
 root.mainloop()
